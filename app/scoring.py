@@ -73,6 +73,61 @@ LOW_FIT_TERMS = [
     "sales development representative",
 ]
 
+SOC_BACKED_EMPLOYER_TERMS: dict[str, list[str]] = {
+    "braze limited": [
+        "customer success",
+        "account manager",
+        "technical account manager",
+        "client",
+        "commercial",
+        "growth",
+        "marketing",
+        "partnership",
+        "communications",
+    ],
+    "contentful ltd": [
+        "customer success",
+        "account executive",
+        "account manager",
+        "commercial",
+        "content",
+        "marketing",
+        "partnership",
+        "growth",
+    ],
+    "monzo bank limited": [
+        "content",
+        "marketing",
+        "communications",
+        "customer success",
+        "growth",
+        "partnership",
+    ],
+    "synthesia limited": [
+        "content",
+        "creative",
+        "customer success",
+        "marketing",
+        "partnership",
+        "account manager",
+    ],
+    "canva uk operations limited": [
+        "content",
+        "creative",
+        "marketing",
+        "partnership",
+        "customer success",
+    ],
+    "paddle.com market limited": [
+        "customer success",
+        "account manager",
+        "commercial",
+        "growth",
+        "marketing",
+        "partnership",
+    ],
+}
+
 UK_LOCATION_TERMS = [
     "uk",
     "united kingdom",
@@ -94,26 +149,7 @@ UK_LOCATION_TERMS = [
     "northern ireland",
 ]
 
-STRONG_UK_LOCATION_TERMS = [
-    "uk",
-    "united kingdom",
-    "london",
-    "cardiff",
-    "manchester",
-    "bristol",
-    "birmingham",
-    "leeds",
-    "edinburgh",
-    "glasgow",
-    "cambridge",
-    "oxford",
-    "reading",
-    "remote uk",
-    "remote (uk)",
-    "england",
-    "scotland",
-    "northern ireland",
-]
+STRONG_UK_LOCATION_TERMS = UK_LOCATION_TERMS
 
 NON_UK_LOCATION_TERMS = [
     "australia",
@@ -151,12 +187,13 @@ def contains_any(text: str, phrases: list[str]) -> list[str]:
 
 
 def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
+    company_name = str(row.get("company_name") or "")
+    normalized_company_name = normalize_text(company_name)
     title = str(row.get("title") or "")
     location = str(row.get("location") or "")
     description = str(row.get("description") or "")
     salary_text = str(row.get("salary_text") or "")
     combined = " ".join([title, location, description, salary_text])
-    normalized_combined = normalize_text(combined)
 
     title_hits = contains_any(title, TITLE_FIT_TERMS)
     uk_location_hits = contains_any(location, UK_LOCATION_TERMS)
@@ -164,6 +201,10 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     non_uk_location_hits = contains_any(location, NON_UK_LOCATION_TERMS)
     is_clearly_non_uk = bool(non_uk_location_hits and not strong_uk_location_hits)
     is_uk_or_unclear = bool(strong_uk_location_hits) or not location.strip()
+
+    soc_backed_terms = SOC_BACKED_EMPLOYER_TERMS.get(normalized_company_name, [])
+    soc_backed_hits = contains_any(" ".join([title, description]), soc_backed_terms)
+    has_soc_backed_signal = bool(soc_backed_hits)
 
     ats_type = str(row.get("ats_type") or "").lower()
     source = str(row.get("source") or "").lower()
@@ -198,9 +239,11 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     extra_fit_hits = contains_any(combined, EXTRA_FIT_TERMS)
     low_fit_hits = contains_any(combined, LOW_FIT_TERMS)
     cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2 + len(extra_fit_hits) + len(title_hits) * 2)
+    if has_soc_backed_signal:
+        cv_fit_score = min(10, cv_fit_score + 2)
     if low_fit_hits:
         cv_fit_score = max(0, cv_fit_score - 7)
-    if not title_hits:
+    if not title_hits and not has_soc_backed_signal:
         cv_fit_score = min(cv_fit_score, 5)
 
     soc_terms = [
@@ -217,6 +260,8 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     ]
     soc_hits = contains_any(combined, soc_terms)
     soc_score = min(10, 4 + len(soc_hits) * 2) if soc_hits else 3
+    if has_soc_backed_signal:
+        soc_score = max(soc_score, 7)
 
     hard_reject_hits = contains_any(combined, profile.hard_reject_phrases)
     strong_sponsorship_hits = contains_any(combined, profile.strong_sponsorship_phrases)
@@ -253,6 +298,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 6 and salary_score >= 5 and title_hits and is_uk_or_unclear:
         decision = Decision.HOLD
         rejection_reason = "Sponsor matched and title/CV fit is plausible, but salary or sponsorship language needs human verification"
+    elif sponsor_score >= 7 and official_posting_score >= 8 and salary_score >= 5 and has_soc_backed_signal and is_uk_or_unclear:
+        decision = Decision.HOLD
+        rejection_reason = "SOC-backed HOLD: employer pattern and role family justify manual sponsorship check"
 
     return JobScore(
         job_id=int(row["id"]),
@@ -266,7 +314,10 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         decision=decision,
         rejection_reason=rejection_reason,
         evidence_json={
+            "company_name": company_name,
             "title_hits": title_hits,
+            "soc_backed_hits": soc_backed_hits,
+            "has_soc_backed_signal": has_soc_backed_signal,
             "uk_location_hits": uk_location_hits,
             "strong_uk_location_hits": strong_uk_location_hits,
             "non_uk_location_hits": non_uk_location_hits,
