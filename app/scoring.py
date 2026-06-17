@@ -12,7 +12,7 @@ OFFICIAL_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters", "generic_care
 
 TITLE_FIT_TERMS = [
     "producer",
-    "development",
+    "development producer",
     "content",
     "creative",
     "partnership",
@@ -70,6 +70,7 @@ LOW_FIT_TERMS = [
     "compliance",
     "financial crime",
     "audit",
+    "sales development representative",
 ]
 
 UK_LOCATION_TERMS = [
@@ -90,12 +91,34 @@ UK_LOCATION_TERMS = [
     "remote (uk)",
     "england",
     "scotland",
-    "wales",
+    "northern ireland",
+]
+
+STRONG_UK_LOCATION_TERMS = [
+    "uk",
+    "united kingdom",
+    "london",
+    "cardiff",
+    "manchester",
+    "bristol",
+    "birmingham",
+    "leeds",
+    "edinburgh",
+    "glasgow",
+    "cambridge",
+    "oxford",
+    "reading",
+    "remote uk",
+    "remote (uk)",
+    "england",
+    "scotland",
     "northern ireland",
 ]
 
 NON_UK_LOCATION_TERMS = [
     "australia",
+    "new south wales",
+    "new wales",
     "sydney",
     "singapore",
     "berlin",
@@ -134,13 +157,13 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     salary_text = str(row.get("salary_text") or "")
     combined = " ".join([title, location, description, salary_text])
     normalized_combined = normalize_text(combined)
-    normalized_location = normalize_text(location)
 
     title_hits = contains_any(title, TITLE_FIT_TERMS)
     uk_location_hits = contains_any(location, UK_LOCATION_TERMS)
+    strong_uk_location_hits = contains_any(location, STRONG_UK_LOCATION_TERMS)
     non_uk_location_hits = contains_any(location, NON_UK_LOCATION_TERMS)
-    is_clearly_non_uk = bool(non_uk_location_hits and not uk_location_hits)
-    is_uk_or_unclear = bool(uk_location_hits) or not location.strip()
+    is_clearly_non_uk = bool(non_uk_location_hits and not strong_uk_location_hits)
+    is_uk_or_unclear = bool(strong_uk_location_hits) or not location.strip()
 
     ats_type = str(row.get("ats_type") or "").lower()
     source = str(row.get("source") or "").lower()
@@ -176,9 +199,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     low_fit_hits = contains_any(combined, LOW_FIT_TERMS)
     cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2 + len(extra_fit_hits) + len(title_hits) * 2)
     if low_fit_hits:
-        cv_fit_score = max(0, cv_fit_score - 6)
+        cv_fit_score = max(0, cv_fit_score - 7)
     if not title_hits:
-        cv_fit_score = min(cv_fit_score, 6)
+        cv_fit_score = min(cv_fit_score, 5)
 
     soc_terms = [
         "producer",
@@ -230,11 +253,6 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 6 and salary_score >= 5 and title_hits and is_uk_or_unclear:
         decision = Decision.HOLD
         rejection_reason = "Sponsor matched and title/CV fit is plausible, but salary or sponsorship language needs human verification"
-    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 5 and any(
-        term in normalized_combined for term in ("producer", "content", "creative", "partnership", "communications")
-    ) and is_uk_or_unclear:
-        decision = Decision.HOLD
-        rejection_reason = "Potentially relevant sponsor role; needs human review"
 
     return JobScore(
         job_id=int(row["id"]),
@@ -250,6 +268,7 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         evidence_json={
             "title_hits": title_hits,
             "uk_location_hits": uk_location_hits,
+            "strong_uk_location_hits": strong_uk_location_hits,
             "non_uk_location_hits": non_uk_location_hits,
             "lane_hits": lane_hits,
             "seniority_hits": seniority_hits,
