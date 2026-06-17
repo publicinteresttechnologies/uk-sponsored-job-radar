@@ -1,0 +1,64 @@
+name: Run job radar
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app/**'
+      - 'requirements.txt'
+      - '.github/workflows/run-job-radar.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  run-job-radar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ensure full sponsor register is present
+        run: |
+          set -euo pipefail
+          mkdir -p app/data
+          curl -L "https://assets.publishing.service.gov.uk/media/6a32aa2fc6e94f095f3ef97b/2026-06-17_-_Worker_and_Temporary_Worker.csv" -o app/data/sponsor_register.csv
+          test -s app/data/sponsor_register.csv
+          head -n 1 app/data/sponsor_register.csv | grep -q "Organisation Name"
+
+      - name: Run pipeline
+        run: |
+          set -euo pipefail
+          python -m app.cli init-db
+          python -m app.cli import-sponsors app/data/sponsor_register.csv
+          python -m app.cli import-companies app/data/target_companies.csv
+          python -m app.cli fetch-jobs || true
+          python -m app.cli score-jobs
+          python -m app.cli generate-packs || true
+          python -m app.cli generate-packs --decision HOLD || true
+          python -m app.cli applications
+          python -m app.cli report
+
+      - name: Commit report and latest sponsor register if changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/data/sponsor_register.csv
+          git add -f reports/latest.html || true
+          if git diff --cached --quiet; then
+            echo "No report changes to commit."
+          else
+            git commit -m "Run sponsored job radar report"
+            git push
+          fi
