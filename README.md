@@ -4,12 +4,22 @@ Local-first MVP for Karan Dhar's UK Skilled Worker sponsored-job search. It disc
 
 It does not auto-apply, auto-submit, automate LinkedIn logins, bypass CAPTCHA/2FA, evade rate limits, create fake applications, hallucinate experience, or treat speculative job-board roles as apply-ready.
 
-## Setup
+## Current status
+
+There are two layers in the repo:
+
+1. **Python CLI MVP** — this is the currently coherent working path. Use this first.
+2. **Next.js web scaffold** — an initial web cockpit scaffold has been added, but it still needs local install/build verification and integration with the Python pipeline before it should be treated as production-ready.
+
+If you are trying to get useful output immediately, run the Python CLI path below.
+
+## Python CLI setup
 
 Run these commands from the repo directory:
 
 ```bash
 python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python -m app.cli init-db
 python -m app.cli import-sponsors app/data/sponsor_register.example.csv
@@ -22,6 +32,18 @@ python -m app.cli report
 ```
 
 Open `reports/latest.html` after the report command completes.
+
+## Next.js scaffold setup
+
+The web scaffold is present for the later cockpit UI. It should be treated as experimental until it has been run locally.
+
+```bash
+npm install
+cp env.example.txt .env
+npm run db:push
+npm run db:seed
+npm run dev
+```
 
 ## Inputs
 
@@ -56,7 +78,7 @@ python -m app.cli track-job 1 HUMAN_REVIEW --next-action "Review pack against ma
 python -m app.cli report
 ```
 
-`generate-packs` only works for `APPLY` or `HOLD` roles. It creates draft CV notes, cover letters, recruiter notes, and screening answers, then marks the job as pack-generated. It never submits an application.
+`generate-packs` only works for `APPLY` or `HOLD` roles. It creates draft CV tailoring notes, cover letters, recruiter notes, and screening answers, then marks the job as pack-generated. It never submits an application.
 
 ## Scoring
 
@@ -80,6 +102,15 @@ The cockpit keeps final submission manual:
 
 ## Tests
 
+Python path:
+
 ```bash
 pytest
+```
+
+Next.js scaffold path:
+
+```bash
+npm run test
+npm run build
 ```
