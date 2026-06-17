@@ -10,38 +10,43 @@ from .normalize import normalize_text
 
 OFFICIAL_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters", "generic_careers"}
 
+TITLE_FIT_TERMS = [
+    "producer",
+    "development",
+    "content",
+    "creative",
+    "partnership",
+    "communications",
+    "public relations",
+    "marketing",
+    "editorial",
+    "strategy",
+    "customer success",
+    "account manager",
+    "commercial",
+    "growth",
+    "gtm",
+]
+
 EXTRA_FIT_TERMS = [
     "producer",
     "senior producer",
     "development producer",
     "creative producer",
     "content producer",
-    "content",
-    "creative",
-    "development",
     "branded content",
-    "partnerships",
-    "partner manager",
     "content strategy",
     "creative strategy",
     "editorial",
-    "media",
     "communications",
     "public relations",
     "campaign",
-    "client",
     "account manager",
-    "commercial",
-    "growth",
-    "gtm",
     "customer success",
     "entertainment",
     "television",
-    "tv",
-    "video",
     "factual",
     "unscripted",
-    "research",
 ]
 
 LOW_FIT_TERMS = [
@@ -60,6 +65,60 @@ LOW_FIT_TERMS = [
     "driver",
     "internship",
     "apprenticeship",
+    "risk management",
+    "controls",
+    "compliance",
+    "financial crime",
+    "audit",
+]
+
+UK_LOCATION_TERMS = [
+    "uk",
+    "united kingdom",
+    "london",
+    "cardiff",
+    "manchester",
+    "bristol",
+    "birmingham",
+    "leeds",
+    "edinburgh",
+    "glasgow",
+    "cambridge",
+    "oxford",
+    "reading",
+    "remote uk",
+    "remote (uk)",
+    "england",
+    "scotland",
+    "wales",
+    "northern ireland",
+]
+
+NON_UK_LOCATION_TERMS = [
+    "australia",
+    "sydney",
+    "singapore",
+    "berlin",
+    "madrid",
+    "paris",
+    "chicago",
+    "austin",
+    "san francisco",
+    "new york",
+    "sao paulo",
+    "são paulo",
+    "latam",
+    "india",
+    "bengaluru",
+    "bangalore",
+    "dublin",
+    "amsterdam",
+    "germany",
+    "france",
+    "spain",
+    "united states",
+    "usa",
+    "canada",
 ]
 
 
@@ -70,10 +129,18 @@ def contains_any(text: str, phrases: list[str]) -> list[str]:
 
 def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     title = str(row.get("title") or "")
+    location = str(row.get("location") or "")
     description = str(row.get("description") or "")
     salary_text = str(row.get("salary_text") or "")
-    combined = " ".join([title, description, salary_text])
+    combined = " ".join([title, location, description, salary_text])
     normalized_combined = normalize_text(combined)
+    normalized_location = normalize_text(location)
+
+    title_hits = contains_any(title, TITLE_FIT_TERMS)
+    uk_location_hits = contains_any(location, UK_LOCATION_TERMS)
+    non_uk_location_hits = contains_any(location, NON_UK_LOCATION_TERMS)
+    is_clearly_non_uk = bool(non_uk_location_hits and not uk_location_hits)
+    is_uk_or_unclear = bool(uk_location_hits) or not location.strip()
 
     ats_type = str(row.get("ats_type") or "").lower()
     source = str(row.get("source") or "").lower()
@@ -107,16 +174,17 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     seniority_hits = contains_any(combined, profile.seniority_keywords)
     extra_fit_hits = contains_any(combined, EXTRA_FIT_TERMS)
     low_fit_hits = contains_any(combined, LOW_FIT_TERMS)
-    cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2 + len(extra_fit_hits))
+    cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2 + len(extra_fit_hits) + len(title_hits) * 2)
     if low_fit_hits:
-        cv_fit_score = max(0, cv_fit_score - 5)
+        cv_fit_score = max(0, cv_fit_score - 6)
+    if not title_hits:
+        cv_fit_score = min(cv_fit_score, 6)
 
     soc_terms = [
         "producer",
         "communications manager",
         "marketing manager",
         "public relations",
-        "research",
         "creative director",
         "content strategist",
         "partnerships manager",
@@ -144,7 +212,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
 
     decision = Decision.REJECT
     rejection_reason: str | None = "Insufficient match"
-    if sponsor_score == 0:
+    if is_clearly_non_uk:
+        rejection_reason = "Role location is outside the UK"
+    elif sponsor_score == 0:
         rejection_reason = "Company not matched to licensed sponsor register"
     elif official_posting_score < 8:
         rejection_reason = "Not verified as an official company or ATS posting"
@@ -152,17 +222,17 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         rejection_reason = f"Salary appears below GBP {profile.minimum_salary_general}"
     elif hard_reject_hits:
         rejection_reason = "Posting contains hard visa sponsorship rejection language"
-    elif low_fit_hits and cv_fit_score < 5:
+    elif low_fit_hits and cv_fit_score < 6:
         rejection_reason = "Role appears outside target lanes"
-    elif sponsor_score >= 7 and salary_score >= 6 and cv_fit_score >= 7 and official_posting_score >= 8:
+    elif sponsor_score >= 7 and salary_score >= 6 and cv_fit_score >= 8 and official_posting_score >= 8 and title_hits and is_uk_or_unclear:
         decision = Decision.APPLY
         rejection_reason = None
-    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 5 and salary_score >= 5:
+    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 6 and salary_score >= 5 and title_hits and is_uk_or_unclear:
         decision = Decision.HOLD
-        rejection_reason = "Sponsor matched and CV fit is plausible, but salary or sponsorship language needs human verification"
-    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 4 and any(
-        term in normalized_combined for term in ("producer", "content", "creative", "partnership", "communications", "media")
-    ):
+        rejection_reason = "Sponsor matched and title/CV fit is plausible, but salary or sponsorship language needs human verification"
+    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 5 and any(
+        term in normalized_combined for term in ("producer", "content", "creative", "partnership", "communications")
+    ) and is_uk_or_unclear:
         decision = Decision.HOLD
         rejection_reason = "Potentially relevant sponsor role; needs human review"
 
@@ -178,6 +248,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         decision=decision,
         rejection_reason=rejection_reason,
         evidence_json={
+            "title_hits": title_hits,
+            "uk_location_hits": uk_location_hits,
+            "non_uk_location_hits": non_uk_location_hits,
             "lane_hits": lane_hits,
             "seniority_hits": seniority_hits,
             "extra_fit_hits": extra_fit_hits,
