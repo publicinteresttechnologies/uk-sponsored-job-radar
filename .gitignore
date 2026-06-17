@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 sponsor_jobs.sqlite3
 reports/
+node_modules/
+.next/
+.env
+.env.local
+prisma/dev.db
+coverage/
+.DS_Store
