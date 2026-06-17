@@ -10,6 +10,58 @@ from .normalize import normalize_text
 
 OFFICIAL_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters", "generic_careers"}
 
+EXTRA_FIT_TERMS = [
+    "producer",
+    "senior producer",
+    "development producer",
+    "creative producer",
+    "content producer",
+    "content",
+    "creative",
+    "development",
+    "branded content",
+    "partnerships",
+    "partner manager",
+    "content strategy",
+    "creative strategy",
+    "editorial",
+    "media",
+    "communications",
+    "public relations",
+    "campaign",
+    "client",
+    "account manager",
+    "commercial",
+    "growth",
+    "gtm",
+    "customer success",
+    "entertainment",
+    "television",
+    "tv",
+    "video",
+    "factual",
+    "unscripted",
+    "research",
+]
+
+LOW_FIT_TERMS = [
+    "software engineer",
+    "frontend engineer",
+    "backend engineer",
+    "full stack engineer",
+    "machine learning engineer",
+    "data engineer",
+    "legal counsel",
+    "lawyer",
+    "retail",
+    "store",
+    "genius bar",
+    "warehouse",
+    "driver",
+    "internship",
+    "apprenticeship",
+]
+
 
 def contains_any(text: str, phrases: list[str]) -> list[str]:
     normalized = normalize_text(text)
@@ -21,6 +73,7 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     description = str(row.get("description") or "")
     salary_text = str(row.get("salary_text") or "")
     combined = " ".join([title, description, salary_text])
+    normalized_combined = normalize_text(combined)
 
     ats_type = str(row.get("ats_type") or "").lower()
     source = str(row.get("source") or "").lower()
@@ -52,7 +105,11 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
 
     lane_hits = contains_any(combined, profile.preferred_lanes)
     seniority_hits = contains_any(combined, profile.seniority_keywords)
-    cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2)
+    extra_fit_hits = contains_any(combined, EXTRA_FIT_TERMS)
+    low_fit_hits = contains_any(combined, LOW_FIT_TERMS)
+    cv_fit_score = min(10, len(lane_hits) * 3 + len(seniority_hits) * 2 + len(extra_fit_hits))
+    if low_fit_hits:
+        cv_fit_score = max(0, cv_fit_score - 5)
 
     soc_terms = [
         "producer",
@@ -63,6 +120,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         "creative director",
         "content strategist",
         "partnerships manager",
+        "account manager",
+        "customer success",
+        "commercial manager",
     ]
     soc_hits = contains_any(combined, soc_terms)
     soc_score = min(10, 4 + len(soc_hits) * 2) if soc_hits else 3
@@ -92,12 +152,19 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         rejection_reason = f"Salary appears below GBP {profile.minimum_salary_general}"
     elif hard_reject_hits:
         rejection_reason = "Posting contains hard visa sponsorship rejection language"
+    elif low_fit_hits and cv_fit_score < 5:
+        rejection_reason = "Role appears outside target lanes"
     elif sponsor_score >= 7 and salary_score >= 6 and cv_fit_score >= 7 and official_posting_score >= 8:
         decision = Decision.APPLY
         rejection_reason = None
-    elif cv_fit_score >= 7 and (salary_score == 5 or sponsorship_language_score == 5):
+    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 5 and salary_score >= 5:
         decision = Decision.HOLD
-        rejection_reason = "Strong CV fit but salary or sponsorship language is unclear"
+        rejection_reason = "Sponsor matched and CV fit is plausible, but salary or sponsorship language needs human verification"
+    elif sponsor_score >= 7 and official_posting_score >= 8 and cv_fit_score >= 4 and any(
+        term in normalized_combined for term in ("producer", "content", "creative", "partnership", "communications", "media")
+    ):
+        decision = Decision.HOLD
+        rejection_reason = "Potentially relevant sponsor role; needs human review"
 
     return JobScore(
         job_id=int(row["id"]),
@@ -113,6 +180,8 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         evidence_json={
             "lane_hits": lane_hits,
             "seniority_hits": seniority_hits,
+            "extra_fit_hits": extra_fit_hits,
+            "low_fit_hits": low_fit_hits,
             "soc_hits": soc_hits,
             "hard_reject_hits": hard_reject_hits,
             "strong_sponsorship_hits": strong_sponsorship_hits,
