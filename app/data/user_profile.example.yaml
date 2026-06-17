@@ -1,0 +1,52 @@
+name: Your Name
+email:
+phone:
+location: UK
+target_country: UK
+visa_goal: Skilled Worker sponsorship
+visa_status: UK Graduate Route visa
+visa_expiry: YYYY-MM-DD
+minimum_salary_general: 41700
+summary: Replace this with a truthful, evidence-backed professional summary before generating application packs.
+proof_points:
+  - Replace with verified achievement 1.
+  - Replace with verified achievement 2.
+credits:
+  - Replace with verified credit or project.
+awards:
+  - Replace with verified award.
+education:
+  - Replace with verified education.
+preferred_lanes:
+  - unscripted TV development
+  - creative producer
+  - branded content
+  - content strategy
+  - partnerships
+  - media communications
+  - PR communications
+  - research content
+  - factual entertainment
+  - comedy-entertainment
+  - creative strategy
+  - media-tech GTM
+hard_reject_phrases:
+  - must have the right to work in the UK
+  - we are unable to sponsor
+  - no visa sponsorship
+  - applicants must already be authorised to work
+strong_sponsorship_phrases:
+  - visa sponsorship available
+  - skilled worker
+  - certificate of sponsorship
+  - sponsorship available
+seniority_keywords:
+  - producer
+  - senior producer
+  - development producer
+  - content producer
+  - content strategist
+  - partnerships manager
+  - communications manager
+  - research associate
+  - creative lead
