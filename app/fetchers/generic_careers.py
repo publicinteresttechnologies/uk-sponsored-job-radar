@@ -9,7 +9,92 @@ from app.models import Company, Job, utc_now_iso
 from app.normalize import clean_text, extract_salary_range, make_dedupe_key, normalize_text, normalize_title
 
 
-JOB_HINTS = ("job", "career", "vacancy", "role", "opening", "position")
+JOB_HINTS = (
+    "job",
+    "jobs",
+    "career",
+    "careers",
+    "vacancy",
+    "vacancies",
+    "role",
+    "roles",
+    "opening",
+    "openings",
+    "position",
+    "positions",
+)
+
+ROLE_HINTS = (
+    "producer",
+    "content",
+    "creative",
+    "development",
+    "partnership",
+    "communications",
+    "marketing",
+    "editorial",
+    "strategy",
+    "media",
+    "research",
+    "commercial",
+    "account",
+    "client",
+    "growth",
+    "gtm",
+    "customer success",
+)
+
+URL_JOB_PATTERNS = (
+    "/job/",
+    "/jobs/",
+    "/careers/",
+    "/career/",
+    "/vacancies/",
+    "/positions/",
+    "/details/",
+    "jobs.",
+    "greenhouse.io",
+    "lever.co",
+    "ashbyhq.com",
+    "smartrecruiters.com",
+)
+
+NOISE_PHRASES = (
+    "skip to main content",
+    "benefits",
+    "life at",
+    "meet ",
+    "learn more",
+    "privacy",
+    "cookies",
+    "terms",
+    "diversity",
+    "accessibility",
+    "job alerts",
+    "talent community",
+    "sign in",
+    "login",
+    "saved jobs",
+    "job creation",
+    "retail",
+    "students",
+    "graduates",
+    "internship",
+    "apprenticeship",
+)
+
+
+def _looks_like_job_link(visible: str, href: str, context: str) -> bool:
+    haystack = normalize_text(" ".join([visible, href, context]))
+    if not visible or len(visible) < 4:
+        return False
+    if any(phrase in haystack for phrase in NOISE_PHRASES):
+        return False
+    has_job_url = any(pattern in haystack for pattern in URL_JOB_PATTERNS)
+    has_job_hint = any(hint in haystack for hint in JOB_HINTS)
+    has_role_hint = any(hint in haystack for hint in ROLE_HINTS)
+    # Generic careers pages are noisy. Require a job-like URL plus either a role word or a job hint.
+    return has_job_url and (has_role_hint or has_job_hint)
 
 
 def fetch_generic_careers_jobs(company: Company) -> list[Job]:
@@ -27,13 +112,12 @@ def fetch_generic_careers_jobs(company: Company) -> list[Job]:
     for link in soup.find_all("a", href=True):
         visible = clean_text(link.get_text(" "))
         href = urljoin(company.careers_url, link["href"])
-        haystack = normalize_text(" ".join([visible, href]))
-        if not visible or not any(hint in haystack for hint in JOB_HINTS):
+        context = clean_text(link.parent.get_text(" ") if link.parent else visible)
+        if not _looks_like_job_link(visible, href, context):
             continue
         if href in seen:
             continue
         seen.add(href)
-        context = clean_text(link.parent.get_text(" ") if link.parent else visible)
         min_salary, max_salary, currency = extract_salary_range(context)
         jobs.append(
             Job(
