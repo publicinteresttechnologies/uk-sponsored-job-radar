@@ -38,4 +38,6 @@ def load_user_profile(path: Path | str | None = None) -> UserProfile:
     profile_path = Path(path) if path else DATA_DIR / "user_profile.example.yaml"
     with profile_path.open("r", encoding="utf-8") as handle:
         raw: dict[str, Any] = yaml.safe_load(handle) or {}
+    if raw.get("visa_expiry") is not None:
+        raw["visa_expiry"] = str(raw["visa_expiry"])
     return UserProfile(**raw)
