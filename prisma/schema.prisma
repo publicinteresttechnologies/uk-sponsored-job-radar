@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  REJECTED
+  REVIEW
+  READY_TO_APPLY
+  APPLIED
+}
+
+enum SponsorStatus {
+  UNKNOWN
+  LICENSED
+  EXPLICIT
+  NONE
+}
+
+model Company {
+  id                  String        @id @default(cuid())
+  name                String        @unique
+  sponsorStatus       SponsorStatus @default(UNKNOWN)
+  sponsorshipEvidence String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  jobs                Job[]
+}
+
+model Job {
+  id                     String            @id @default(cuid())
+  companyName            String
+  companyId              String?
+  title                  String
+  location               String?
+  sourceUrl              String
+  officialApplicationUrl String?
+  atsType                String?
+  jdText                 String
+  salaryText             String?
+  detectedSeniority      String?
+  detectedRoleFamily     String?
+  sponsorStatus          SponsorStatus     @default(UNKNOWN)
+  sponsorshipEvidence    String?
+  salarySocScore         Int               @default(0)
+  cvFitScore             Int               @default(0)
+  overallScore           Int               @default(0)
+  status                 JobStatus         @default(REVIEW)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  company                Company?          @relation(fields: [companyId], references: [id])
+  applicationPack        ApplicationPack?
+  rejectionReasons       RejectionReason[]
+
+  @@unique([companyName, title, sourceUrl])
+  @@index([status])
+  @@index([companyName])
+}
+
+model ApplicationPack {
+  id                       String   @id @default(cuid())
+  jobId                    String   @unique
+  tailoredCvBullets        String
+  coverLetter              String
+  recruiterNote            String
+  whyMeSummary             String
+  sponsorshipPositioning   String
+  atsScreeningSuggestions  String
+  riskNotes                String
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  job                      Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model RejectionReason {
+  id        String   @id @default(cuid())
+  jobId     String
+  code      String
+  message   String
+  createdAt DateTime @default(now())
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
