@@ -1,28 +1,38 @@
-name: Your Name
-email:
+name: Karan Dhar
+email: distractent@gmail.com
 phone:
 location: UK
 target_country: UK
 visa_goal: Skilled Worker sponsorship
 visa_status: UK Graduate Route visa
-visa_expiry: YYYY-MM-DD
+visa_expiry: 2026-07-30
 minimum_salary_general: 41700
-summary: Replace this with a truthful, evidence-backed professional summary before generating application packs.
+summary: UK-based Indian TV and content producer with 7+ years across major unscripted entertainment formats, NFTS MA Television Entertainment, and RTS Student Television Award recognition. Seeking a Skilled Worker sponsorship role where TV/content/development/creative strategy/partnerships experience is a hard fit.
 proof_points:
-  - Replace with verified achievement 1.
-  - Replace with verified achievement 2.
+  - 7+ years across high-volume Indian unscripted entertainment television.
+  - Experience on mass-audience formats including Indian Idol, Bigg Boss, The Voice India, Dance India Dance, and India's Got Talent.
+  - NFTS MA Television Entertainment in the UK.
+  - RTS Student Television Award winner.
 credits:
-  - Replace with verified credit or project.
+  - Indian Idol
+  - Bigg Boss
+  - The Voice India
+  - Dance India Dance
+  - India's Got Talent
 awards:
-  - Replace with verified award.
+  - RTS Student Television Award winner
 education:
-  - Replace with verified education.
+  - MA Television Entertainment, National Film and Television School
 preferred_lanes:
   - unscripted TV development
   - creative producer
+  - content producer
+  - senior producer
+  - development producer
   - branded content
   - content strategy
   - partnerships
+  - media partnerships
   - media communications
   - PR communications
   - research content
@@ -30,23 +40,33 @@ preferred_lanes:
   - comedy-entertainment
   - creative strategy
   - media-tech GTM
+  - customer success
+  - account manager
+  - commercial partnerships
 hard_reject_phrases:
   - must have the right to work in the UK
   - we are unable to sponsor
   - no visa sponsorship
   - applicants must already be authorised to work
+  - applicants must already be authorized to work
+  - this role does not offer sponsorship
 strong_sponsorship_phrases:
   - visa sponsorship available
   - skilled worker
   - certificate of sponsorship
   - sponsorship available
+  - sponsorship can be considered
 seniority_keywords:
   - producer
   - senior producer
   - development producer
+  - creative producer
   - content producer
   - content strategist
   - partnerships manager
+  - account manager
+  - customer success manager
   - communications manager
   - research associate
   - creative lead
+  - strategy manager
