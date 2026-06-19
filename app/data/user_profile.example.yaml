@@ -50,6 +50,12 @@ hard_reject_phrases:
   - applicants must already be authorised to work
   - applicants must already be authorized to work
   - this role does not offer sponsorship
+  - open application
+  - sales development representative
+  - business development representative
+  - solution engineer
+  - solutions engineer
+  - area sales director
 strong_sponsorship_phrases:
   - visa sponsorship available
   - skilled worker
