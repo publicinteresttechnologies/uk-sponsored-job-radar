@@ -185,12 +185,13 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     sponsor_status = str(row.get("sponsor_status") or "")
     sponsor_rating = str(row.get("sponsor_rating") or "")
     sponsor_routes = str(row.get("sponsor_routes") or "")
+    has_skilled_worker_route = "skilled worker" in sponsor_routes.casefold()
     sponsor_score = 0
     if sponsor_status == "matched":
         sponsor_score = 8
         if "a" in sponsor_rating.casefold():
             sponsor_score = 10
-        if "skilled worker" in sponsor_routes.casefold():
+        if has_skilled_worker_route:
             sponsor_score = min(10, sponsor_score + 1)
 
     min_salary = row.get("min_salary")
@@ -256,6 +257,8 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         rejection_reason = "Role location is outside the UK"
     elif sponsor_score == 0:
         rejection_reason = "Company not matched to licensed sponsor register"
+    elif not has_skilled_worker_route:
+        rejection_reason = "Sponsor matched but licence route is not Skilled Worker"
     elif official_posting_score < 8:
         rejection_reason = "Not verified as an official company or ATS posting"
     elif salary_score == 0:
@@ -292,6 +295,7 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
             "soc_signal_codes": list(soc_signal.get("soc_codes", [])) if soc_signal else [],
             "soc_signal_confidence": soc_signal.get("confidence") if soc_signal else None,
             "has_soc_backed_signal": has_soc_backed_signal,
+            "has_skilled_worker_route": has_skilled_worker_route,
             "uk_location_hits": uk_location_hits,
             "strong_uk_location_hits": strong_uk_location_hits,
             "non_uk_location_hits": non_uk_location_hits,
