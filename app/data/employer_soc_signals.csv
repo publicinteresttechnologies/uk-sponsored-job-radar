@@ -1,7 +1,7 @@
 company_name,soc_codes,role_family_terms,confidence
 Braze Limited,"3544;2431;2432","customer success;account manager;technical account manager;client;commercial;growth;marketing;partnership;communications",manual_seed
-Contentful Ltd,"3544;2431;2432","customer success;account executive;account manager;commercial;content;marketing;partnership;growth",manual_seed
-Monzo Bank Limited,"2431;2432;3544","content;marketing;communications;customer success;growth;partnership",manual_seed
+Contentful Ltd,"3544;2431;2432","customer success;account manager;commercial;content;marketing;partnership;growth;alliances;alliance",manual_seed
+Monzo Bank Limited,"2431;2432;3544","content;marketing;communications;customer success;growth;partnership;strategy",manual_seed
 Synthesia Limited,"3416;2431;2432;3544","content;creative;customer success;marketing;partnership;account manager",manual_seed
 Canva UK Operations Limited,"3416;2431;2432;3544","content;creative;marketing;partnership;customer success",manual_seed
 Paddle.com Market Limited,"2431;2432;3544","customer success;account manager;commercial;growth;marketing;partnership",manual_seed
