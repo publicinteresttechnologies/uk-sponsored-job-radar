@@ -19,6 +19,8 @@ TITLE_FIT_TERMS = [
     "content",
     "creative",
     "partnership",
+    "alliance",
+    "alliances",
     "communications",
     "public relations",
     "marketing",
@@ -26,6 +28,7 @@ TITLE_FIT_TERMS = [
     "strategy",
     "customer success",
     "account manager",
+    "account executive",
     "commercial",
     "growth",
     "gtm",
@@ -45,6 +48,7 @@ EXTRA_FIT_TERMS = [
     "public relations",
     "campaign",
     "account manager",
+    "account executive",
     "customer success",
     "entertainment",
     "television",
@@ -59,6 +63,8 @@ LOW_FIT_TERMS = [
     "full stack engineer",
     "machine learning engineer",
     "data engineer",
+    "solution engineer",
+    "solutions engineer",
     "legal counsel",
     "lawyer",
     "retail",
@@ -175,7 +181,7 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
 
     soc_signal = load_soc_signals().get(normalized_company_name, {})
     soc_signal_terms = list(soc_signal.get("role_family_terms", [])) if soc_signal else []
-    soc_backed_hits = contains_any(" ".join([title, description]), soc_signal_terms)
+    soc_backed_hits = contains_any(title, soc_signal_terms)
     has_soc_backed_signal = bool(soc_backed_hits)
 
     ats_type = str(row.get("ats_type") or "").lower()
@@ -228,6 +234,7 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
         "content strategist",
         "partnerships manager",
         "account manager",
+        "account executive",
         "customer success",
         "commercial manager",
     ]
