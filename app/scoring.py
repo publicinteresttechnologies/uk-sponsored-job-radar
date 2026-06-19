@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import csv
 from collections.abc import Mapping
+from functools import lru_cache
 from typing import Any
 
-from .config import UserProfile
+from .config import DATA_DIR, UserProfile
 from .models import Decision, JobScore
 from .normalize import normalize_text
 
 
 OFFICIAL_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters", "generic_careers"}
+SOC_SIGNAL_PATH = DATA_DIR / "employer_soc_signals.csv"
 
 TITLE_FIT_TERMS = [
     "producer",
@@ -73,61 +76,6 @@ LOW_FIT_TERMS = [
     "sales development representative",
 ]
 
-SOC_BACKED_EMPLOYER_TERMS: dict[str, list[str]] = {
-    "braze limited": [
-        "customer success",
-        "account manager",
-        "technical account manager",
-        "client",
-        "commercial",
-        "growth",
-        "marketing",
-        "partnership",
-        "communications",
-    ],
-    "contentful ltd": [
-        "customer success",
-        "account executive",
-        "account manager",
-        "commercial",
-        "content",
-        "marketing",
-        "partnership",
-        "growth",
-    ],
-    "monzo bank limited": [
-        "content",
-        "marketing",
-        "communications",
-        "customer success",
-        "growth",
-        "partnership",
-    ],
-    "synthesia limited": [
-        "content",
-        "creative",
-        "customer success",
-        "marketing",
-        "partnership",
-        "account manager",
-    ],
-    "canva uk operations limited": [
-        "content",
-        "creative",
-        "marketing",
-        "partnership",
-        "customer success",
-    ],
-    "paddle.com market limited": [
-        "customer success",
-        "account manager",
-        "commercial",
-        "growth",
-        "marketing",
-        "partnership",
-    ],
-}
-
 UK_LOCATION_TERMS = [
     "uk",
     "united kingdom",
@@ -186,6 +134,29 @@ def contains_any(text: str, phrases: list[str]) -> list[str]:
     return [phrase for phrase in phrases if normalize_text(phrase) in normalized]
 
 
+def _split_semicolon(value: str | None) -> list[str]:
+    return [part.strip() for part in (value or "").split(";") if part.strip()]
+
+
+@lru_cache(maxsize=1)
+def load_soc_signals() -> dict[str, dict[str, list[str] | str]]:
+    if not SOC_SIGNAL_PATH.exists():
+        return {}
+    signals: dict[str, dict[str, list[str] | str]] = {}
+    with SOC_SIGNAL_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            company_name = normalize_text(row.get("company_name") or "")
+            if not company_name:
+                continue
+            signals[company_name] = {
+                "soc_codes": _split_semicolon(row.get("soc_codes")),
+                "role_family_terms": _split_semicolon(row.get("role_family_terms")),
+                "confidence": row.get("confidence") or "unknown",
+            }
+    return signals
+
+
 def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     company_name = str(row.get("company_name") or "")
     normalized_company_name = normalize_text(company_name)
@@ -202,8 +173,9 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
     is_clearly_non_uk = bool(non_uk_location_hits and not strong_uk_location_hits)
     is_uk_or_unclear = bool(strong_uk_location_hits) or not location.strip()
 
-    soc_backed_terms = SOC_BACKED_EMPLOYER_TERMS.get(normalized_company_name, [])
-    soc_backed_hits = contains_any(" ".join([title, description]), soc_backed_terms)
+    soc_signal = load_soc_signals().get(normalized_company_name, {})
+    soc_signal_terms = list(soc_signal.get("role_family_terms", [])) if soc_signal else []
+    soc_backed_hits = contains_any(" ".join([title, description]), soc_signal_terms)
     has_soc_backed_signal = bool(soc_backed_hits)
 
     ats_type = str(row.get("ats_type") or "").lower()
@@ -317,6 +289,8 @@ def score_job(row: Mapping[str, Any], profile: UserProfile) -> JobScore:
             "company_name": company_name,
             "title_hits": title_hits,
             "soc_backed_hits": soc_backed_hits,
+            "soc_signal_codes": list(soc_signal.get("soc_codes", [])) if soc_signal else [],
+            "soc_signal_confidence": soc_signal.get("confidence") if soc_signal else None,
             "has_soc_backed_signal": has_soc_backed_signal,
             "uk_location_hits": uk_location_hits,
             "strong_uk_location_hits": strong_uk_location_hits,
