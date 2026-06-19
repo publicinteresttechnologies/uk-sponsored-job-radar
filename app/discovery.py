@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import re
 from dataclasses import dataclass
@@ -15,7 +16,6 @@ from .normalize import normalize_company_name
 
 DISCOVERED_SOURCES_PATH = DATA_DIR / "discovered_target_companies.csv"
 DISCOVERY_REPORT_PATH = REPORTS_DIR / "source_discovery.csv"
-SUPPORTED_ATS = ("greenhouse", "lever", "ashby", "smartrecruiters")
 
 ROLE_HINTS = (
     "producer",
@@ -80,8 +80,7 @@ def _has_relevant_job(payload: object) -> tuple[int, int]:
 
 
 def _probe_greenhouse(client: httpx.Client, name: str, slug: str) -> DiscoveredSource | None:
-    url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
-    response = client.get(url, params={"content": "true"})
+    response = client.get(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs", params={"content": "true"})
     if response.status_code != 200:
         return None
     payload = response.json()
@@ -92,8 +91,7 @@ def _probe_greenhouse(client: httpx.Client, name: str, slug: str) -> DiscoveredS
 
 
 def _probe_lever(client: httpx.Client, name: str, slug: str) -> DiscoveredSource | None:
-    url = f"https://api.lever.co/v0/postings/{slug}"
-    response = client.get(url, params={"mode": "json"})
+    response = client.get(f"https://api.lever.co/v0/postings/{slug}", params={"mode": "json"})
     if response.status_code != 200:
         return None
     payload = response.json()
@@ -104,8 +102,7 @@ def _probe_lever(client: httpx.Client, name: str, slug: str) -> DiscoveredSource
 
 
 def _probe_ashby(client: httpx.Client, name: str, slug: str) -> DiscoveredSource | None:
-    url = f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
-    response = client.get(url)
+    response = client.get(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
     if response.status_code != 200:
         return None
     payload = response.json()
@@ -116,8 +113,7 @@ def _probe_ashby(client: httpx.Client, name: str, slug: str) -> DiscoveredSource
 
 
 def _probe_smartrecruiters(client: httpx.Client, name: str, slug: str) -> DiscoveredSource | None:
-    url = f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
-    response = client.get(url)
+    response = client.get(f"https://api.smartrecruiters.com/v1/companies/{slug}/postings")
     if response.status_code != 200:
         return None
     payload = response.json()
@@ -128,9 +124,8 @@ def _probe_smartrecruiters(client: httpx.Client, name: str, slug: str) -> Discov
 
 
 def _probe_company(client: httpx.Client, name: str) -> DiscoveredSource | None:
-    probes = (_probe_greenhouse, _probe_lever, _probe_ashby, _probe_smartrecruiters)
     for slug in _slug_candidates(name):
-        for probe in probes:
+        for probe in (_probe_greenhouse, _probe_lever, _probe_ashby, _probe_smartrecruiters):
             try:
                 source = probe(client, name, slug)
             except Exception:
@@ -179,15 +174,7 @@ def discover_sources(limit: int = 500, db_path: Path | str = DB_PATH) -> list[Di
         for source in discovered:
             parsed = urlparse(source.careers_url)
             website = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
-            writer.writerow(
-                {
-                    "name": source.name,
-                    "website": website,
-                    "careers_url": source.careers_url,
-                    "ats_type": source.ats_type,
-                    "ats_identifier": source.ats_identifier,
-                }
-            )
+            writer.writerow({"name": source.name, "website": website, "careers_url": source.careers_url, "ats_type": source.ats_type, "ats_identifier": source.ats_identifier})
 
     with DISCOVERY_REPORT_PATH.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["name", "ats_type", "ats_identifier", "job_count", "matched_hint_count", "careers_url"])
@@ -201,3 +188,18 @@ def import_discovered_sources(path: Path = DISCOVERED_SOURCES_PATH, db_path: Pat
     if not path.exists():
         return 0
     return import_companies(path, db_path)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Discover ATS sources from Skilled Worker sponsor names.")
+    parser.add_argument("--limit", type=int, default=500)
+    parser.add_argument("--db-path", default=str(DB_PATH))
+    args = parser.parse_args()
+    sources = discover_sources(limit=args.limit, db_path=args.db_path)
+    imported = import_discovered_sources(db_path=args.db_path)
+    print(f"Discovered {len(sources)} sources and imported {imported} companies")
+    print(f"Wrote {DISCOVERED_SOURCES_PATH} and {DISCOVERY_REPORT_PATH}")
+
+
+if __name__ == "__main__":
+    main()
