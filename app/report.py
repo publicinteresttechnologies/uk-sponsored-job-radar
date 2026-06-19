@@ -26,13 +26,22 @@ REPORT_TEMPLATE = Template(
     .meta { color: #5f6368; font-size: 14px; }
     .score { font-weight: 700; }
     .reason { color: #9a3412; }
+    .warning { background: #fff7ed; border: 1px solid #fed7aa; padding: 12px; border-radius: 6px; }
     a { color: #0b57d0; }
     pre { white-space: pre-wrap; background: #f6f8fa; padding: 10px; border-radius: 6px; }
   </style>
 </head>
 <body>
   <h1>UK Sponsored Job Radar Report</h1>
-  <p class="meta">Generated locally from official company and ATS sources. No application has been submitted by this tool.</p>
+  <p class="meta">Generated locally from the configured target companies and official ATS/company sources. No application has been submitted by this tool.</p>
+
+  <section class="warning">
+    <h2>Coverage disclosure</h2>
+    <p><strong>This is not an exhaustive scan of every sponsor-register employer.</strong></p>
+    <p>The database currently contains {{ coverage.sponsor_rows }} sponsor-register rows and {{ coverage.target_companies }} configured target companies. The radar only fetches vacancies for configured target companies with usable careers/ATS sources.</p>
+    <p>Matched target companies: {{ coverage.matched_companies }}. Skilled Worker target companies: {{ coverage.skilled_worker_companies }}. Target companies with live fetched jobs: {{ coverage.companies_with_jobs }}.</p>
+    <p>Use this report as a screened target-source radar. Exhaustive sponsor-wide coverage requires a separate source-discovery pass to find each employer's official careers URL/ATS before jobs can be fetched.</p>
+  </section>
 
   <section>
     <h2>Source audit</h2>
@@ -157,6 +166,13 @@ def generate_report(db_path: Path | str = DB_PATH, output_path: Path | str | Non
             ORDER BY hold_count DESC, apply_count DESC, live_jobs DESC, companies.name
             """
         ).fetchall()
+        coverage = dict(
+            sponsor_rows=conn.execute("SELECT COUNT(*) FROM sponsor_register").fetchone()[0],
+            target_companies=conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0],
+            matched_companies=conn.execute("SELECT COUNT(*) FROM companies WHERE sponsor_status = 'matched'").fetchone()[0],
+            skilled_worker_companies=conn.execute("SELECT COUNT(*) FROM companies WHERE sponsor_routes LIKE '%Skilled Worker%'").fetchone()[0],
+            companies_with_jobs=conn.execute("SELECT COUNT(DISTINCT company_id) FROM jobs WHERE is_live = 1").fetchone()[0],
+        )
 
     grouped: dict[str, list[dict]] = {"APPLY": [], "HOLD": []}
     rejected: dict[str, list[dict]] = {}
@@ -174,5 +190,8 @@ def generate_report(db_path: Path | str = DB_PATH, output_path: Path | str | Non
             rejected.setdefault(item.get("rejection_reason") or "Rejected", []).append(item)
 
     audit_rows = [dict(row) for row in source_audit]
-    output.write_text(REPORT_TEMPLATE.render(grouped=grouped, rejected=rejected, source_audit=audit_rows), encoding="utf-8")
+    output.write_text(
+        REPORT_TEMPLATE.render(grouped=grouped, rejected=rejected, source_audit=audit_rows, coverage=coverage),
+        encoding="utf-8",
+    )
     return output
